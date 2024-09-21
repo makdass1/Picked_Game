@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using RunTime.Data.UnityObject;
 using RunTime.Data.ValueObject;
+using RunTime.Keys;
 using RunTime.Signals;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace RunTime.Managers
 {
@@ -15,7 +18,7 @@ namespace RunTime.Managers
 
         private InputData _data;
         private bool _isAvailableForTouch, _isFirstTimeTouchTaken, _isTouching;
-        
+
         private float _currentVelocity;
         private float3 _moveVector;
         private Vector2? _mousePosition;
@@ -46,11 +49,11 @@ namespace RunTime.Managers
             CoreGameSignals.Instance.onReset += OnReset;
             InputSignals.Instance.onEnableInput += OnEnableInput;
             InputSignals.Instance.onDisableInput += OnDisableInput;
-           
+
 
         }
 
-       
+
 
         private void OnDisableInput()
         {
@@ -85,7 +88,7 @@ namespace RunTime.Managers
         {
             if (!_isAvailableForTouch) return;
 
-            if (Input.GetMouseButtonUp(0)&& !IsPointerOverUIElement())
+            if (Input.GetMouseButtonUp(0) && !IsPointerOverUIElement())
             {
                 _isTouching = false;
                 InputSignals.Instance.onInputReleased?.Invoke();
@@ -108,17 +111,50 @@ namespace RunTime.Managers
                 _mousePosition = Input.mousePosition;
             }
 
-            if (Input.GetMouseButton(0)&& !IsPointerOverUIElement())
+            if (Input.GetMouseButton(0) && !IsPointerOverUIElement())
             {
                 if (_isTouching)
                 {
                     if (_mousePosition != null)
                     {
                         Vector2 mouseDeltaPos = (Vector2)Input.mousePosition - _mousePosition.Value;
+                        if (mouseDeltaPos.x > _data.HorizontalInputSpeed)
+                        {
+                            _moveVector.x = _data.HorizontalInputSpeed / 10f * mouseDeltaPos.x;
+                        }
+                        else if (mouseDeltaPos.x < _data.HorizontalInputSpeed)
+                        {
+                            _moveVector.x = -_data.HorizontalInputSpeed / 10f * mouseDeltaPos.x;
+                        }
+                        else
+                        {
+                            _moveVector.x = Mathf.SmoothDamp(current: -_moveVector.x, 0f, ref _currentVelocity,
+                                _data.ClampSpeed);
+                        }
 
+                        _mousePosition = Input.mousePosition;
+                        InputSignals.Instance.onInputDragged?.Invoke(new HorizontalInputParams()
+                        {
+                            HorizontalValue = _moveVector.x,
+                            ClampValues = _data.ClampValues
+                        });
                     }
                 }
             }
+
+        }
+
+        private bool IsPointerOverUIElement()
+        {
+            var eventData = new PointerEventData(EventSystem.current)
+            {
+                position = Input.mousePosition 
+                
+            };
+            var results = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(eventData,results);
+            return results.Count > 0;
+
         }
     }
 }
